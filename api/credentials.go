@@ -2,11 +2,10 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
 
-const errNoCredentials = "no credentials: set token (GODADDY_API_TOKEN) or key and secret (GODADDY_API_KEY, GODADDY_API_SECRET)"
+var errNoCredentials = errors.New("no credentials: set token (GODADDY_API_TOKEN) or key and secret (GODADDY_API_KEY, GODADDY_API_SECRET)")
 
 // Credentials holds the values used to authenticate against the GoDaddy API.
 // Token is a Personal Access Token and takes precedence when set. Key and
@@ -17,25 +16,23 @@ type Credentials struct {
 	Secret string
 }
 
-// Validate returns an error when neither a token nor a complete key/secret
-// pair is present. Surrounding whitespace is ignored.
-func (c Credentials) Validate() error {
-	if c.token() != "" {
-		return nil
+// authorization returns the value for the Authorization header, or
+// errNoCredentials when neither a token nor a complete key/secret pair is set.
+func (c Credentials) authorization() (string, error) {
+	if tok := c.token(); tok != "" {
+		return "Bearer " + tok, nil
 	}
-	if c.key() != "" && c.secret() != "" {
-		return nil
+	if k, s := c.key(), c.secret(); k != "" && s != "" {
+		return "sso-key " + k + ":" + s, nil
 	}
-	return errors.New(errNoCredentials)
+	return "", errNoCredentials
 }
 
-// authorization returns the value for the Authorization header. Callers
-// must call Validate first.
-func (c Credentials) authorization() string {
-	if tok := c.token(); tok != "" {
-		return fmt.Sprintf("Bearer %s", tok)
-	}
-	return fmt.Sprintf("sso-key %s:%s", c.key(), c.secret())
+// Validate reports whether the credentials are usable. Token takes precedence;
+// otherwise both Key and Secret are required. Surrounding whitespace is ignored.
+func (c Credentials) Validate() error {
+	_, err := c.authorization()
+	return err
 }
 
 func (c Credentials) token() string  { return strings.TrimSpace(c.Token) }
