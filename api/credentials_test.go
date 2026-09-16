@@ -78,6 +78,8 @@ func TestCredentialsRejectControlCharacters(t *testing.T) {
 		{Token: "to\rk"},
 		{Key: "k\x00", Secret: "s"},
 		{Key: "k", Secret: "s\nx"},
+		{Token: "to\x01k"},
+		{Token: "to\x7fk"},
 	} {
 		got, err := c.authorization()
 		assert.ErrorIs(t, err, errInvalidCredential)

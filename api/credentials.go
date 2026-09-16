@@ -21,8 +21,8 @@ type Credentials struct {
 
 // authorization returns the value for the Authorization header. It returns
 // errNoCredentials when neither a token nor a complete key/secret pair is set,
-// and errInvalidCredential when the value contains characters that cannot be
-// sent in an HTTP header.
+// and errInvalidCredential when the value contains control characters that
+// net/http would reject in a header field value.
 func (c Credentials) authorization() (string, error) {
 	var value string
 	switch {
@@ -33,10 +33,21 @@ func (c Credentials) authorization() (string, error) {
 	default:
 		return "", errNoCredentials
 	}
-	if strings.ContainsAny(value, "\r\n\x00") {
+	if !validHeaderValue(value) {
 		return "", errInvalidCredential
 	}
 	return value, nil
+}
+
+// validHeaderValue mirrors what net/http accepts in a header field value:
+// no control characters other than horizontal tab, and no DEL.
+func validHeaderValue(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if b := s[i]; (b < 0x20 && b != '\t') || b == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // Validate returns an error unless the credentials are usable. Token takes
