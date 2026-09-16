@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -60,10 +59,6 @@ func NewClient(baseURL string, creds Credentials) (*Client, error) {
 	authorization, err := creds.authorization()
 	if err != nil {
 		return nil, err
-	}
-
-	if strings.ContainsAny(authorization, "\r\n\x00") {
-		return nil, errors.New("invalid credential: contains characters that cannot be sent in an Authorization header")
 	}
 
 	baseURL, err = formatURL(baseURL)

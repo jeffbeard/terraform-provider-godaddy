@@ -50,9 +50,9 @@ Sources:
 - `baseurl` unchanged.
 - `providerConfigure` builds `Config{Token, Key, Secret, BaseURL}` and calls `Client()`.
 
-Note: SDKv2 emits the `Deprecated` warning only when the attribute is set in HCL, not when the env
-default supplies it. Users relying solely on `GODADDY_API_KEY`/`GODADDY_API_SECRET` see no warning
-from Terraform. The README carries the deprecation message for them.
+Note: SDKv2 applies `DefaultFunc` during validation, so the `Deprecated` warning fires whenever
+`key`/`secret` are in use, including when they come only from environment variables. Env-only users
+therefore see the warning on every plan/apply. The README states this.
 
 ### 2. Config (`plugin/godaddy/config.go`)
 

@@ -71,3 +71,17 @@ func TestCredentialsAuthorization(t *testing.T) {
 		})
 	}
 }
+
+func TestCredentialsRejectControlCharacters(t *testing.T) {
+	for _, c := range []Credentials{
+		{Token: "to\nk"},
+		{Token: "to\rk"},
+		{Key: "k\x00", Secret: "s"},
+		{Key: "k", Secret: "s\nx"},
+	} {
+		got, err := c.authorization()
+		assert.ErrorIs(t, err, errInvalidCredential)
+		assert.Empty(t, got)
+		assert.ErrorIs(t, c.Validate(), errInvalidCredential)
+	}
+}

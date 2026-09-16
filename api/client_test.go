@@ -38,7 +38,7 @@ func TestNewClientRejectsInvalidURL(t *testing.T) {
 func TestNewClientRejectsControlCharacters(t *testing.T) {
 	client, err := NewClient("https://api.godaddy.com", Credentials{Token: "to\nk"})
 	assert.Nil(t, client)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, errInvalidCredential)
 }
 
 func TestNewClientChecksCredentialsBeforeURL(t *testing.T) {

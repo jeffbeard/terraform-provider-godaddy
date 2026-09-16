@@ -53,7 +53,8 @@ provider "godaddy" {
 
 GoDaddy is sunsetting the two-part API key/secret credential. The provider still accepts it via the
 `key` and `secret` attributes or the `GODADDY_API_KEY` and `GODADDY_API_SECRET` environment variables,
-and emits a deprecation warning when they are set in configuration. If both a token and a key/secret
+and emits a deprecation warning whenever they are in use, including when supplied via environment
+variables. If both a token and a key/secret
 pair are present, the token is used. Support for `key` and `secret` will be removed in a future major
 version; migrate to a token.
 
@@ -65,7 +66,7 @@ provider "godaddy" {
 ```
 
 ## Domain Record Resource
-A `godaddy_domain_record` resource requires a `domain`. If the domain is not registered under the account that owns the key, an optional `customer` number can be specified.
+A `godaddy_domain_record` resource requires a `domain`. If the domain is not registered under the account that owns the credential, an optional `customer` number can be specified.
 Additionally, one or more `record` instances are required. For each `record`, the `name`, `type`, and `data` attributes are required. `MX` records can optionally specify `priority` or will default to `0`. Address and NameServer records can be
 defined using shorthand-notation as `addresses = [""]` or `nameservers = [""]`, respectively unless you need to override the default time-to-live (3600). The available record
 types include:

@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-var errNoCredentials = errors.New("no credentials: set token (GODADDY_API_TOKEN) or key and secret (GODADDY_API_KEY, GODADDY_API_SECRET)")
+var (
+	errNoCredentials     = errors.New("no credentials: set token (GODADDY_API_TOKEN) or key and secret (GODADDY_API_KEY, GODADDY_API_SECRET)")
+	errInvalidCredential = errors.New("invalid credential: contains characters that cannot be sent in an Authorization header")
+)
 
 // Credentials holds the values used to authenticate against the GoDaddy API.
 // Token is a Personal Access Token and takes precedence when set. Key and
@@ -16,20 +19,29 @@ type Credentials struct {
 	Secret string
 }
 
-// authorization returns the value for the Authorization header, or
-// errNoCredentials when neither a token nor a complete key/secret pair is set.
+// authorization returns the value for the Authorization header. It returns
+// errNoCredentials when neither a token nor a complete key/secret pair is set,
+// and errInvalidCredential when the value contains characters that cannot be
+// sent in an HTTP header.
 func (c Credentials) authorization() (string, error) {
-	if tok := c.token(); tok != "" {
-		return "Bearer " + tok, nil
+	var value string
+	switch {
+	case c.token() != "":
+		value = "Bearer " + c.token()
+	case c.key() != "" && c.secret() != "":
+		value = "sso-key " + c.key() + ":" + c.secret()
+	default:
+		return "", errNoCredentials
 	}
-	if k, s := c.key(), c.secret(); k != "" && s != "" {
-		return "sso-key " + k + ":" + s, nil
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return "", errInvalidCredential
 	}
-	return "", errNoCredentials
+	return value, nil
 }
 
-// Validate reports whether the credentials are usable. Token takes precedence;
-// otherwise both Key and Secret are required. Surrounding whitespace is ignored.
+// Validate returns an error unless the credentials are usable. Token takes
+// precedence; otherwise both Key and Secret are required. Surrounding
+// whitespace is ignored.
 func (c Credentials) Validate() error {
 	_, err := c.authorization()
 	return err

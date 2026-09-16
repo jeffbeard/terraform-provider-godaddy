@@ -24,7 +24,7 @@ func init() {
 }
 
 func TestInvalidUrl(t *testing.T) {
-	_, err := NewClient("api.godaddy.com", creds)
+	_, err := NewClient("api.godaddy.com", Credentials{Token: "tok"})
 	assert.NotNil(t, err)
 }
 
