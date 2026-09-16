@@ -9,7 +9,8 @@ import (
 )
 
 // newRecordingServer returns a test server that captures the headers of the
-// last request and replies with an empty JSON array.
+// last request and replies with an empty JSON array. A second request within
+// one test through the same client pays a real 1s throttle sleep.
 func newRecordingServer(t *testing.T) (*httptest.Server, *http.Header) {
 	captured := &http.Header{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +33,17 @@ func TestNewClientRejectsInvalidURL(t *testing.T) {
 	client, err := NewClient("api.godaddy.com", Credentials{Token: "tok"})
 	assert.Nil(t, client)
 	assert.Error(t, err)
+}
+
+func TestNewClientRejectsControlCharacters(t *testing.T) {
+	client, err := NewClient("https://api.godaddy.com", Credentials{Token: "to\nk"})
+	assert.Nil(t, client)
+	assert.Error(t, err)
+}
+
+func TestNewClientChecksCredentialsBeforeURL(t *testing.T) {
+	_, err := NewClient("api.godaddy.com", Credentials{})
+	assert.ErrorIs(t, err, errNoCredentials)
 }
 
 func TestExecuteSendsBearerToken(t *testing.T) {

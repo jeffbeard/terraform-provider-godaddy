@@ -3,6 +3,7 @@ package godaddy
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -39,12 +40,17 @@ func verifyEnvExists(t *testing.T, key string) {
 	}
 }
 
-func TestProviderConfigureRequiresCredentials(t *testing.T) {
-	// Isolate from the developer's shell environment. EnvDefaultFunc treats
-	// an empty value as unset.
+// clearCredentialEnv isolates a test from the developer's shell. EnvDefaultFunc
+// treats an empty value as unset.
+func clearCredentialEnv(t *testing.T) {
+	t.Helper()
 	for _, k := range []string{"GODADDY_API_TOKEN", "GODADDY_API_KEY", "GODADDY_API_SECRET"} {
 		t.Setenv(k, "")
 	}
+}
+
+func TestProviderConfigureRequiresCredentials(t *testing.T) {
+	clearCredentialEnv(t)
 
 	p := Provider()
 	d := schema.TestResourceDataRaw(t, p.Schema, map[string]interface{}{})
@@ -53,18 +59,46 @@ func TestProviderConfigureRequiresCredentials(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when no credentials are supplied")
 	}
+	if strings.HasPrefix(err.Error(), "error setting up client") {
+		t.Fatalf("expected bare credentials error, got: %s", err)
+	}
 }
 
 func TestProviderConfigureAcceptsToken(t *testing.T) {
-	for _, k := range []string{"GODADDY_API_TOKEN", "GODADDY_API_KEY", "GODADDY_API_SECRET"} {
-		t.Setenv(k, "")
-	}
+	clearCredentialEnv(t)
 
 	p := Provider()
 	d := schema.TestResourceDataRaw(t, p.Schema, map[string]interface{}{
 		"token": "tok",
 	})
 
+	client, err := providerConfigure(d)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if client == nil {
+		t.Fatal("expected a client")
+	}
+}
+
+func TestProviderConfigureAcceptsKeySecret(t *testing.T) {
+	clearCredentialEnv(t)
+	p := Provider()
+	d := schema.TestResourceDataRaw(t, p.Schema, map[string]interface{}{"key": "k", "secret": "s"})
+	client, err := providerConfigure(d)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if client == nil {
+		t.Fatal("expected a client")
+	}
+}
+
+func TestProviderConfigureReadsTokenFromEnv(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("GODADDY_API_TOKEN", "envtok")
+	p := Provider()
+	d := schema.TestResourceDataRaw(t, p.Schema, map[string]interface{}{})
 	client, err := providerConfigure(d)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)

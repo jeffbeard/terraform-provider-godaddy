@@ -58,5 +58,9 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 		BaseURL: d.Get("baseurl").(string),
 	}
 
+	if err := config.credentials().Validate(); err != nil {
+		return nil, err
+	}
+
 	return config.Client()
 }
