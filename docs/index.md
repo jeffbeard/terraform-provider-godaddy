@@ -21,6 +21,7 @@ terraform import godaddy_domain_record.mydomain mydomain.com
 
 ### Optional
 
+- **token** (String, Sensitive) GoDaddy Personal Access Token. Requires the `domains.dns:update` and `domains.domain:read` scopes. Read from `GODADDY_API_TOKEN` when unset. Takes precedence over `key`/`secret`.
+- **key** (String, Sensitive, Deprecated) GoDaddy API Key. Read from `GODADDY_API_KEY` when unset. Use `token` instead.
+- **secret** (String, Sensitive, Deprecated) GoDaddy API Secret. Read from `GODADDY_API_SECRET` when unset. Use `token` instead.
 - **baseurl** (String) GoDaddy Base URL(defaults to production).
-- **key** (String) GoDaddy API Key.
-- **secret** (String) GoDaddy API Secret.

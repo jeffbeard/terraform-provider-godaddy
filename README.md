@@ -29,21 +29,37 @@
 3. Rename to match naming scheme: `terraform-provider-<NAME>_vX.Y.Z` https://www.terraform.io/docs/configuration/providers.html#third-party-plugins
 4. Run `terraform init` to make sure the provider is initialized properly.
 
-## API Key
-In order to leverage the GoDaddy APIs, an [API key](https://developer.godaddy.com/keys/) is required. The key pair can be optionally stored in environment variables.
+## Authentication
+
+The provider authenticates with a GoDaddy [Personal Access Token](https://developer.godaddy.com/en/docs/api-users/auth) (PAT).
+Generate one from the GoDaddy developer portal with the following scopes:
+
+* `domains.dns:update`
+* `domains.domain:read` (GoDaddy requires this even for write operations)
+
+The token can be supplied via the `token` provider attribute or the `GODADDY_API_TOKEN` environment variable.
 
 ```bash
-export GODADDY_API_KEY=abc
-export GODADDY_API_SECRET=123
+export GODADDY_API_TOKEN=xxxxxxxx
 ```
-
-## Provider
-
-If `key` and `secret` aren't provided under the `godaddy` `provider`, they are expected to be exposed as environment variables: `GODADDY_API_KEY` and `GODADDY_API_SECRET`.
 
 ```terraform
 provider "godaddy" {
-  key = "abc"
+  token = "xxxxxxxx"
+}
+```
+
+### Legacy API key and secret (deprecated)
+
+GoDaddy is sunsetting the two-part API key/secret credential. The provider still accepts it via the
+`key` and `secret` attributes or the `GODADDY_API_KEY` and `GODADDY_API_SECRET` environment variables,
+and emits a deprecation warning when they are set in configuration. If both a token and a key/secret
+pair are present, the token is used. Support for `key` and `secret` will be removed in a future major
+version; migrate to a token.
+
+```terraform
+provider "godaddy" {
+  key    = "abc"
   secret = "123"
 }
 ```
