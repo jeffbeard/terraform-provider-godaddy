@@ -10,21 +10,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var key, secret, baseURL string
+var creds Credentials
+var baseURL string
 
 func init() {
-	key = os.Getenv("GODADDY_API_KEY")
-	secret = os.Getenv("GODADDY_API_SECRET")
+	creds = Credentials{
+		Token:  os.Getenv("GODADDY_API_TOKEN"),
+		Key:    os.Getenv("GODADDY_API_KEY"),
+		Secret: os.Getenv("GODADDY_API_SECRET"),
+	}
 	baseURL = "https://api.godaddy.com"
 }
 
 func TestInvalidUrl(t *testing.T) {
-	_, err := NewClient("api.godaddy.com", key, secret)
+	_, err := NewClient("api.godaddy.com", creds)
 	assert.NotNil(t, err)
 }
 
 func TestAuthFailure(t *testing.T) {
-	client, err := NewClient(baseURL, "ABC", "123")
+	client, err := NewClient(baseURL, Credentials{Token: "bogus"})
 	assert.Nil(t, err)
 	assert.NotNil(t, client)
 
@@ -33,7 +37,7 @@ func TestAuthFailure(t *testing.T) {
 }
 
 func TestGetRecords(t *testing.T) {
-	client, err := NewClient(baseURL, key, secret)
+	client, err := NewClient(baseURL, creds)
 	assert.Nil(t, err)
 	assert.NotNil(t, client)
 
@@ -41,7 +45,7 @@ func TestGetRecords(t *testing.T) {
 }
 
 func TestGetTooManyRecords(t *testing.T) {
-	client, err := NewClient(baseURL, key, secret)
+	client, err := NewClient(baseURL, creds)
 	assert.Nil(t, err)
 	assert.NotNil(t, client)
 
