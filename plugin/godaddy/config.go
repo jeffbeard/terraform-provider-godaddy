@@ -9,6 +9,7 @@ import (
 
 // Config provides the provider's configuration
 type Config struct {
+	Token   string
 	Key     string
 	Secret  string
 	BaseURL string
@@ -16,7 +17,11 @@ type Config struct {
 
 // Client returns a new client for accessing GoDaddy.
 func (c *Config) Client() (*api.Client, error) {
-	client, err := api.NewClient(c.BaseURL, c.Key, c.Secret)
+	client, err := api.NewClient(c.BaseURL, api.Credentials{
+		Token:  c.Token,
+		Key:    c.Key,
+		Secret: c.Secret,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("error setting up client: %s", err)
