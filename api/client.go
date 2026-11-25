@@ -25,10 +25,9 @@ const (
 
 // Client is a GoDaddy API client
 type Client struct {
-	baseURL string
-	key     string
-	secret  string
-	client  *http.Client
+	baseURL       string
+	authorization string
+	client        *http.Client
 }
 
 // rateLimitedTransport throttles API calls to GoDaddy. It appears that
@@ -54,9 +53,15 @@ func (t *rateLimitedTransport) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 // NewClient constructs a new GoDaddy API client or an error if the supplied
-// input is invalid.
-func NewClient(baseURL, key, secret string) (*Client, error) {
-	baseURL, err := formatURL(baseURL)
+// input is invalid. Credentials are checked before the base URL so that a
+// missing token or key/secret pair produces the most useful error.
+func NewClient(baseURL string, creds Credentials) (*Client, error) {
+	authorization, err := creds.authorization()
+	if err != nil {
+		return nil, err
+	}
+
+	baseURL, err = formatURL(baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +74,8 @@ func NewClient(baseURL, key, secret string) (*Client, error) {
 	}
 
 	return &Client{
-		baseURL: baseURL,
-		key:     strings.TrimSpace(key),
-		secret:  strings.TrimSpace(secret),
+		baseURL:       baseURL,
+		authorization: authorization,
 		client: &http.Client{
 			Timeout: time.Second * 30,
 			Transport: &rateLimitedTransport{
@@ -89,7 +93,7 @@ func (c *Client) execute(customerID string, req *http.Request, result interface{
 
 	req.Header.Set(headerAccept, mediaTypeJSON)
 	req.Header.Set(headerContent, mediaTypeJSON)
-	req.Header.Set(headerAuthorization, fmt.Sprintf("sso-key %s:%s", c.key, c.secret))
+	req.Header.Set(headerAuthorization, c.authorization)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
