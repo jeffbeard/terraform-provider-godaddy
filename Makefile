@@ -34,7 +34,7 @@ docs:
 local:
 	go build -o $(BINARY) -ldflags='-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)' .
 	rm -rf ~/.terraform/plugins/terraform-godaddy
-	rm -rf ~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/$(VERSION)/$(OS)_$(ARCH)
-	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/$(VERSION)/$(OS)_$(ARCH)/
-	mv $(BINARY) ~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/$(VERSION)/$(OS)_$(ARCH)/
-	chmod +x ~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/$(VERSION)/$(OS)_$(ARCH)/$(BINARY)
+	rm -rf ~/.terraform.d/plugins/registry.terraform.io/jeffbeard/godaddy/$(VERSION)/$(OS)_$(ARCH)
+	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/jeffbeard/godaddy/$(VERSION)/$(OS)_$(ARCH)/
+	mv $(BINARY) ~/.terraform.d/plugins/registry.terraform.io/jeffbeard/godaddy/$(VERSION)/$(OS)_$(ARCH)/
+	chmod +x ~/.terraform.d/plugins/registry.terraform.io/jeffbeard/godaddy/$(VERSION)/$(OS)_$(ARCH)/$(BINARY)

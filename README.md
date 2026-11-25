@@ -31,8 +31,34 @@ Personal Access Token authentication. Releases up to v1.9.1 are published by the
 
 ## Installation
 
-Releases from this fork are not published to the Terraform Registry. Install the binary into a local
-plugin directory; Terraform then resolves the provider from there instead of the registry.
+The provider is published to the Terraform Registry as
+[`jeffbeard/godaddy`](https://registry.terraform.io/providers/jeffbeard/godaddy). Declare it and run
+`terraform init`:
+
+```terraform
+terraform {
+  required_providers {
+    godaddy = {
+      source  = "jeffbeard/godaddy"
+      version = "~> 1.10"
+    }
+  }
+}
+```
+
+### Migrating from n3integration/godaddy
+
+The resource and its schema are unchanged, so existing state carries over. Change `source` to
+`jeffbeard/godaddy` as above, then point the state at the new address and re-initialize:
+
+```bash
+terraform state replace-provider n3integration/godaddy jeffbeard/godaddy
+terraform init -upgrade
+```
+
+### Manual installation
+
+To install without the registry, for example in an air-gapped environment:
 
 1. Download the archive for your platform, plus the `SHA256SUMS` and `SHA256SUMS.sig` files, from
    https://github.com/jeffbeard/terraform-provider-godaddy/releases
@@ -41,31 +67,17 @@ plugin directory; Terraform then resolves the provider from there instead of the
    on Apple Silicon:
 
    ```bash
-   dir=~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/1.10.0/darwin_arm64
+   dir=~/.terraform.d/plugins/registry.terraform.io/jeffbeard/godaddy/1.10.0/darwin_arm64
    mkdir -p "$dir"
    unzip terraform-provider-godaddy_1.10.0_darwin_arm64.zip -d "$dir"
    ```
 
    Replace `darwin_arm64` with your platform, for example `linux_amd64` or `windows_amd64`. On Windows
    the plugin directory is `%APPDATA%\terraform.d\plugins`.
-4. Pin the version in your configuration and run `terraform init`:
+4. Run `terraform init`. Terraform uses the local copy instead of contacting the registry for this
+   provider.
 
-   ```terraform
-   terraform {
-     required_providers {
-       godaddy = {
-         source  = "n3integration/godaddy"
-         version = "1.10.0"
-       }
-     }
-   }
-   ```
-
-For HCP Terraform or Terraform Enterprise, unpack the `linux_amd64` binary into
-`terraform.d/plugins/registry.terraform.io/n3integration/godaddy/1.10.0/linux_amd64/` inside the
-working directory you upload.
-
-To build from source instead, run `make local`.
+To build from source instead, run `make local`, which installs into the same plugin directory.
 
 ## Authentication
 
