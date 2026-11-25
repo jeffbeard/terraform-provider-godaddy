@@ -1,17 +1,13 @@
-# This GitHub action can publish assets for release when a tag is created.
-# Currently its setup to run on any tag that matches the pattern "v*" (ie. v0.1.0).
+# Builds, signs, and publishes release artifacts when a "v*" tag is pushed.
 #
-# This uses an action (paultyng/ghaction-import-gpg) that assumes you set your 
-# private key in the `GPG_PRIVATE_KEY` secret and passphrase in the `PASSPHRASE`
-# secret. If you would rather own your own GPG handling, please fork this action
-# or use an alternative one for key handling.
+# Required repository secrets (see RELEASING.md):
+#   GPG_PRIVATE_KEY  ASCII-armored private signing key
+#   PASSPHRASE       passphrase for that key
 #
-# You will need to pass the `--batch` flag to `gpg` in your signing step 
-# in `goreleaser` to indicate this is being used in a non-interactive mode.
-#
+# The release is created as a draft; publish it from the GitHub UI after
+# inspecting the artifacts.
 name: release
 on:
-  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -20,36 +16,36 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # Store the signing secrets on this environment and add a required
+    # reviewer so no run can read the key without human approval.
+    environment: release
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v3
-      -
-        name: Unshallow
-        run: git fetch --prune --unshallow
-      -
-        name: Set up Go
-        uses: actions/setup-go@v3
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
-          cache: true
-      -
-        name: Import GPG key
+          # GoReleaser needs full history and tags.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: stable
+          # No build cache in the release job: nothing a previous run left
+          # behind should end up in a signed artifact.
+          cache: false
+      - name: Run tests
+        run: go test -race -count=1 ./...
+      - name: Import GPG key
         id: import_gpg
-        # TODO: move this to HashiCorp namespace or find alternative that is just simple gpg commands
-        # see https://github.com/hashicorp/terraform-provider-scaffolding/issues/22
-        uses: paultyng/ghaction-import-gpg@v2.1.0
-        env:
-          # These secrets will need to be configured for the repository:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          PASSPHRASE: ${{ secrets.PASSPHRASE }}
-      -
-        name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4.1.0
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         with:
-          version: latest
-          args: release --rm-dist
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PASSPHRASE }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: '~> v2'
+          args: release --clean
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          # GitHub sets this automatically
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

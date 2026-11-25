@@ -1,10 +1,16 @@
 # terraform-provider-godaddy
 [Terraform](https://www.terraform.io/) plugin for managing domain records
 
-[![Release Status for n3integration/terraform-provider-godaddy](https://github.com/n3integration/terraform-provider-godaddy/workflows/release/badge.svg)](https://github.com/n3integration/terraform-provider-godaddy/actions)
-[![Codeship Status for n3integration/terraform-provider-godaddy](https://app.codeship.com/projects/29e8c490-8b5d-0134-914d-3e63d62140d1/status?branch=master)](https://app.codeship.com/projects/184616)
+[![ci](https://github.com/jeffbeard/terraform-provider-godaddy/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffbeard/terraform-provider-godaddy/actions/workflows/ci.yml)
+[![release](https://github.com/jeffbeard/terraform-provider-godaddy/actions/workflows/release.yml/badge.svg)](https://github.com/jeffbeard/terraform-provider-godaddy/actions/workflows/release.yml)
+
+This is a fork of [n3integration/terraform-provider-godaddy](https://github.com/n3integration/terraform-provider-godaddy),
+which has had no releases since v1.9.1 (December 2022). Starting with v1.10.0 this fork adds GoDaddy
+Personal Access Token authentication. Releases up to v1.9.1 are published by the upstream project.
 
 <dl>
+  <dt>Terraform v1.3.0 and later, Personal Access Token support</dt>
+  <dd>https://github.com/jeffbeard/terraform-provider-godaddy/releases/tag/v1.10.0</dd>
   <dt>Terraform v1.3.0</dt>
   <dd>https://github.com/n3integration/terraform-provider-godaddy/releases/tag/v1.9.0</dd>
   <dt>Terraform v0.14.x</dt>
@@ -23,11 +29,43 @@
   <dd>https://github.com/n3integration/terraform-provider-godaddy/releases/tag/v1.0.0</dd>
 </dl>
 
-### Installation steps for Terraform Cloud
-1. Download the latest `linux_amd64` release from https://github.com/n3integration/terraform-provider-godaddy/releases
-2. Unpack to `<project folder>/terraform.d/plugins/linux_amd64`.
-3. Rename to match naming scheme: `terraform-provider-<NAME>_vX.Y.Z` https://www.terraform.io/docs/configuration/providers.html#third-party-plugins
-4. Run `terraform init` to make sure the provider is initialized properly.
+## Installation
+
+Releases from this fork are not published to the Terraform Registry. Install the binary into a local
+plugin directory; Terraform then resolves the provider from there instead of the registry.
+
+1. Download the archive for your platform, plus the `SHA256SUMS` and `SHA256SUMS.sig` files, from
+   https://github.com/jeffbeard/terraform-provider-godaddy/releases
+2. Verify the download (see [Verifying a release](RELEASING.md#verifying-a-release)).
+3. Unpack the binary into the plugin directory for your platform, keeping its file name. For v1.10.0
+   on Apple Silicon:
+
+   ```bash
+   dir=~/.terraform.d/plugins/registry.terraform.io/n3integration/godaddy/1.10.0/darwin_arm64
+   mkdir -p "$dir"
+   unzip terraform-provider-godaddy_1.10.0_darwin_arm64.zip -d "$dir"
+   ```
+
+   Replace `darwin_arm64` with your platform, for example `linux_amd64` or `windows_amd64`. On Windows
+   the plugin directory is `%APPDATA%\terraform.d\plugins`.
+4. Pin the version in your configuration and run `terraform init`:
+
+   ```terraform
+   terraform {
+     required_providers {
+       godaddy = {
+         source  = "n3integration/godaddy"
+         version = "1.10.0"
+       }
+     }
+   }
+   ```
+
+For HCP Terraform or Terraform Enterprise, unpack the `linux_amd64` binary into
+`terraform.d/plugins/registry.terraform.io/n3integration/godaddy/1.10.0/linux_amd64/` inside the
+working directory you upload.
+
+To build from source instead, run `make local`.
 
 ## Authentication
 
