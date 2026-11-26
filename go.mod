@@ -5,7 +5,7 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.6.0
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	google.golang.org/genproto v0.0.0-20200904004341-0bd0a958aa1d // indirect
 )
 
@@ -36,8 +36,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
-	golang.org/x/sys v0.0.0-20220627191245-f75cf1eec38b // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/grpc v1.32.0 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
@@ -45,4 +45,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.0 // indirect
 )
 
-go 1.19
+go 1.25.0
