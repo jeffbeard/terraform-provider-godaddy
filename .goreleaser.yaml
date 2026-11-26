@@ -39,23 +39,9 @@ checksum:
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
   algorithm: sha256
-signs:
-  - artifacts: checksum
-    args:
-      # --batch is required because signing runs non-interactively in CI.
-      - "--batch"
-      - "--local-user"
-      - "{{ .Env.GPG_FINGERPRINT }}" # set by the import-gpg step in release.yml
-      - "--output"
-      - "${signature}"
-      - "--detach-sign"
-      - "${artifact}"
-release:
-  extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-  # Releases are created as drafts so a human can inspect the artifacts
-  # before publishing.
-  draft: true
+# Signing and publishing are not done by GoReleaser. The release workflow runs
+# this file with --skip=publish in a job that has no secrets, then a separate
+# job signs the checksum file and creates the draft GitHub release. See
+# .github/workflows/release.yml.
 changelog:
   disable: true
