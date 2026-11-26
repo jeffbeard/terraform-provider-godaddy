@@ -1,6 +1,16 @@
 # Builds, signs, and publishes release artifacts when a "v*" tag is pushed.
 #
-# Required repository secrets (see RELEASING.md):
+# Two jobs, so that nothing that builds or tests code ever runs next to the
+# signing key:
+#
+#   build  no secrets. Checks the tag is on master, runs the tests, builds every
+#          platform, writes the checksum file, and records build provenance.
+#   sign   waits for approval of the "release" environment. Downloads the build
+#          output, signs the checksum file with plain gpg, and creates a draft
+#          GitHub release. It checks out no code and runs no third-party action
+#          after the download.
+#
+# Required secrets on the "release" environment (see RELEASING.md):
 #   GPG_PRIVATE_KEY  ASCII-armored private signing key
 #   PASSPHRASE       passphrase for that key
 #
@@ -11,41 +21,118 @@ on:
   push:
     tags:
       - 'v*'
-permissions:
-  contents: write
+permissions: {}
 jobs:
-  goreleaser:
+  build:
     runs-on: ubuntu-latest
-    # Store the signing secrets on this environment and add a required
-    # reviewer so no run can read the key without human approval.
-    environment: release
+    permissions:
+      contents: read
+      # Both are needed only to record build provenance.
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # GoReleaser needs full history and tags.
+          # GoReleaser needs full history and tags; the ancestry check needs master.
           fetch-depth: 0
           persist-credentials: false
+      - name: Require the tagged commit to be on master
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on master. Releases are built only from reviewed commits."
+            exit 1
+          fi
       - name: Set up Go
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: stable
+          # Exact version, bumped deliberately (see RELEASING.md).
+          go-version: '1.27.4'
           # No build cache in the release job: nothing a previous run left
-          # behind should end up in a signed artifact.
+          # behind should end up in a released artifact.
           cache: false
       - name: Run tests
         run: go test -race -count=1 ./...
-      - name: Import GPG key
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Run GoReleaser
+      - name: Build all platforms
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: '~> v2'
-          args: release --clean
+          # Exact version, bumped deliberately (see RELEASING.md).
+          version: 'v2.18.2'
+          args: release --clean --skip=publish
+      - name: Collect release files
+        id: collect
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sums="terraform-provider-godaddy_${version}_SHA256SUMS"
+          mkdir release
+          cp dist/*.zip "dist/${sums}" release/
+          # The Terraform Registry requires the manifest as a release asset,
+          # under the name already listed in the checksum file.
+          cp terraform-registry-manifest.json "release/terraform-provider-godaddy_${version}_manifest.json"
+          (cd release && sha256sum --check --strict "${sums}")
+          echo "sums=release/${sums}" >> "$GITHUB_OUTPUT"
+      - name: Record build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.collect.outputs.sums }}
+      - name: Hand the files to the signing job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: release/
+          if-no-files-found: error
+          retention-days: 5
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    # The signing secrets live on this environment, which has a required
+    # reviewer: no run can read the key without human approval.
+    environment: release
+    permissions:
+      contents: write
+    env:
+      # Fingerprint of the published release signing key. The job refuses to
+      # sign with any other key, so swapping the secret cannot go unnoticed.
+      # Update it together with release-signing-key.pub.asc when rotating.
+      EXPECTED_FINGERPRINT: 999751B7B6512241E73B65532D2D237C15BE1EAA
+    steps:
+      - name: Download the build output
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: release
+      - name: Check the files against the checksum file
+        working-directory: release
+        run: sha256sum --check --strict terraform-provider-godaddy_*_SHA256SUMS
+      - name: Sign the checksum file
+        working-directory: release
         env:
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          sums="$(ls terraform-provider-godaddy_*_SHA256SUMS)"
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          fingerprint="$(gpg --batch --list-secret-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')"
+          if [ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]; then
+            echo "::error::The key in GPG_PRIVATE_KEY is not the published release signing key."
+            exit 1
+          fi
+          gpg --batch --pinentry-mode loopback --passphrase-fd 3 \
+            --local-user "$fingerprint" \
+            --output "${sums}.sig" --detach-sign "${sums}" 3<<<"$PASSPHRASE"
+          gpg --batch --verify "${sums}.sig" "${sums}"
+          gpgconf --kill all
+          rm -rf "$GNUPGHOME"
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --title "$GITHUB_REF_NAME" \
+            --notes "" \
+            release/*
