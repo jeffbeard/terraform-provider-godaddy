@@ -275,6 +275,16 @@ Added to close the two types P17 could not cover, because the probe zone has rea
 - **One exception:** the `_domainconnect` CNAME survived a CNAME replace that did not include it. GoDaddy either protects that record or puts it back at once; the probe cannot tell which. Whether it can be deleted or changed through the per-name endpoint was not tested.
 - Restoring by type-wide write worked for both types, including writing `_domainconnect` back in the same list (accepted, no duplicate).
 
+### P19: changing and deleting `_domainconnect` at its own name
+
+Added after P18, where GoDaddy's default `_domainconnect` CNAME survived a type-wide replace that left it out. Run 2026-11-27, run ID `7fd59b`, on `probe-zone.example`. The record was restored afterwards and the zone check passed: the six real records were identical.
+
+- **Change:** `PUT /records/CNAME/_domainconnect` with a different target returned 200, and a read showed the new target.
+- **Delete:** `DELETE /records/CNAME/_domainconnect` returned 204, and a read straight afterwards returned `[]`.
+- **GoDaddy did not put it back:** reads at 10, 20, 30 and 60 seconds after the delete all returned `[]`.
+- **Restore:** `PUT /records/CNAME/_domainconnect` with the original target returned 200 and the record read back as before.
+- **Conclusion:** through the per-name endpoints `_domainconnect` is an ordinary record. It can be changed, deleted and recreated, and GoDaddy does not recreate it on its own within a minute. Its survival in P18 is a property of the type-wide replace, not protection of the record.
+
 ## What the probes mean for the 1.11.0 design
 
 Compared with `docs/superpowers/specs/2026-11-26-safe-dns-resources-design.md` on 2026-11-27. "Needs spec change" lines come first.
@@ -291,6 +301,7 @@ Compared with `docs/superpowers/specs/2026-11-26-safe-dns-resources-design.md` o
 - P3: confirmed. Minimum TTL is 600.
 - P10: confirmed. No stale reads after 20 writes and 4 deletes, so "Reading after a write" needs no polling for records.
 - P12: confirmed, nothing in 1.11.0 depends on it. Per-type and whole-zone reads work, so a later release can read a zone in fewer requests.
+- P19: confirmed. `_domainconnect` behaves like any record at the per-name endpoints, so the new resource needs no special case for it.
 - P17, P18: confirmed. P9 and P13 hold for all six types the old resource writes. Needs a small spec change: the statements no longer need the "inferred for A and CNAME" qualifier, and the `_domainconnect` CNAME is an exception that survives a type-wide replace.
 - P15: needs spec change. One SRV group is all SRV records at a name, across services; it is written and deleted at the plain name and can only be read through the type-wide list. With that, SRV can be supported.
 - P16: needs spec change. A missing scope returns 401 with an empty body, the same as an invalid token, so error messages cannot name the cause with certainty. Scopes per operation are now known: read needs `domains.domain:read`, record writes `domains.dns:update`, nameserver changes `domains.nameserver:update`.
