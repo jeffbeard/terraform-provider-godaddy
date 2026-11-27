@@ -175,12 +175,6 @@ resource "godaddy_domain_record" "gd-fancy-domain" {
 }
 ```
 
-## Building for Linux
-
-```bash
-make linux
-```
-
 ### Additional Information
 If your zone contains existing data, please ensure that your Terraform resource configuration includes all existing records, otherwise they will be removed.
 
