@@ -61,6 +61,12 @@ them back:
   last line of the transcript repeats the JSON.
 - The zone check at the end of the run compares the whole zone with the snapshot once more.
 
+P19 touches one real record in the same way: it changes and deletes the `_domainconnect` CNAME at
+its own path, the only real record the guard lets any probe write by name, watches for a minute to
+see whether GoDaddy puts it back, and then restores it with the same steps as P18 (the record
+printed first, a fresh read that must match, a verified restore, the JSON last on failure). It
+needs the same two flags.
+
 What the tool cannot promise: GoDaddy may answer a read with old data, and the tool only knows what
 GoDaddy tells it. After P6, check the nameservers in the GoDaddy console as well.
 
@@ -104,6 +110,7 @@ that record by hand.
 | `p13` | type-wide, `-allow-zone-wide` | Whether a type-wide replace with one record deletes the other records of that type |
 | `p17` | type-wide, `-allow-zone-wide` | Whether P9 and P13 hold for TXT, MX and SRV: an empty type-wide replace, then one with a single record |
 | `p18` | type-wide on real records, `-allow-zone-wide -replace-real-records` | Whether P9 and P13 hold for A and CNAME. Removes the zone's real A and CNAME records and puts them back |
+| `p19` | one real record, `-allow-zone-wide -replace-real-records` | Whether the `_domainconnect` CNAME can be changed or deleted at its own name, and whether GoDaddy puts it back. Changes, deletes and restores that record |
 | `p14` | probe records | The name an SRV record reads back under; which CAA body is accepted |
 | `p15` | probe records | What one SRV group is: whether a write at a name replaces other services there, and whether the long name can be written and deleted |
 | `p16` | nameserver PATCH that changes nothing, `-allow-zone-wide`, two extra tokens | What a read-only token and a DNS-only token are allowed to do |

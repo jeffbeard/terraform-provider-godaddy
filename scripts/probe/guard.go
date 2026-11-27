@@ -12,6 +12,14 @@ import (
 type allowance struct {
 	typeWidePut []string // record types whose type-wide PUT is allowed; usually none
 	domainPatch bool     // PATCH of the domain itself (nameservers)
+	// realGroup is one {type, name} group outside the probe prefix that the
+	// probe may PUT and DELETE at its own path. The match is exact.
+	realGroup [2]string
+}
+
+// mayWriteGroup reports whether the allowance names exactly this group.
+func (a allowance) mayWriteGroup(recordType, name string) bool {
+	return a.realGroup[0] != "" && a.realGroup[1] != "" && a.realGroup[0] == recordType && a.realGroup[1] == name
 }
 
 // mayReplace reports whether the allowance permits a type-wide PUT to
@@ -32,8 +40,9 @@ var zoneWide = map[string]allowance{
 	"p9":  {typeWidePut: []string{"AAAA"}},
 	"p13": {typeWidePut: []string{"AAAA"}},
 	"p17": {typeWidePut: []string{"TXT", "MX", "SRV"}},
-	"p18": {typeWidePut: []string{"A", "CNAME"}}, // also needs -replace-real-records; see run
-	"p16": {domainPatch: true},                   // one PATCH that repeats the current nameservers
+	"p18": {typeWidePut: []string{"A", "CNAME"}},             // also needs -replace-real-records; see run
+	"p16": {domainPatch: true},                               // one PATCH that repeats the current nameservers
+	"p19": {realGroup: [2]string{"CNAME", "_domainconnect"}}, // also needs -replace-real-records
 }
 
 // allowanceFor returns what the named probe may write beyond probe records.
@@ -57,7 +66,8 @@ func allowanceFor(probe string, allowZoneWide bool) allowance {
 //   - A write must target the probe domain.
 //   - A write to /records/{type}/{name} is allowed only when {name} starts
 //     with the probe prefix, or when {type} is SRV and {name} is the long
-//     form of such a name; see srvLongForm.
+//     form of such a name; see srvLongForm. One probe may also PUT and
+//     DELETE the one group named in allow.realGroup.
 //   - A PUT to /records/{type} (replaces every record of a type) is allowed
 //     only for the types named in allow.typeWidePut.
 //   - A PATCH of the domain itself (nameservers) needs allow.domainPatch.
@@ -91,6 +101,9 @@ func checkWrite(method, path, domain, prefix string, allow allowance) error {
 		return fmt.Errorf("refusing %s %s: this probe may not change the domain", method, path)
 	case len(parts) == 3 && parts[0] == "records":
 		if strings.HasPrefix(parts[2], prefix) || (parts[1] == "SRV" && srvLongForm(parts[2], prefix)) {
+			return nil
+		}
+		if (method == "PUT" || method == "DELETE") && allow.mayWriteGroup(parts[1], parts[2]) {
 			return nil
 		}
 		return fmt.Errorf("refusing %s %s: name %q does not start with %q", method, path, parts[2], prefix)

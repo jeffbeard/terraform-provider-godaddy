@@ -24,7 +24,7 @@ import (
 )
 
 // probeNames are the values -probe accepts.
-var probeNames = []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p12", "p13", "p14", "p15", "p16", "p17", "p18"}
+var probeNames = []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19"}
 
 // readOnly lists the probes that send no writes. They run without a zone
 // snapshot.
@@ -45,8 +45,8 @@ const interruptNotice = "interrupted: finishing safely, do not close this termin
 func main() {
 	probe := flag.String("probe", "", "which probe to run: "+strings.Join(probeNames, " ")+" (p6 includes p11)")
 	outDir := flag.String("out", "scripts/probe/out", "directory for transcripts")
-	allowZoneWide := flag.Bool("allow-zone-wide", false, "permit p6 (nameservers), p9 and p13 (type-wide replace of AAAA), p16 (PATCH of the current nameservers), p17 (type-wide replace of TXT, MX and SRV); p18 needs it too")
-	replaceReal := flag.Bool("replace-real-records", false, "p18 only: permit removing the zone's real A and CNAME records for a short time; p18 puts them back")
+	allowZoneWide := flag.Bool("allow-zone-wide", false, "permit p6 (nameservers), p9 and p13 (type-wide replace of AAAA), p16 (PATCH of the current nameservers), p17 (type-wide replace of TXT, MX and SRV); p18 and p19 need it too")
+	replaceReal := flag.Bool("replace-real-records", false, "p18 and p19 only: permit removing real records for a short time (p18: all A and CNAME records; p19: the _domainconnect CNAME); the probe puts them back")
 	targetNS := flag.String("target-ns", "", "p6 only: comma-separated nameservers to move the domain to")
 	flag.Parse()
 
@@ -95,6 +95,10 @@ func run(probe, outDir string, allowZoneWide, replaceReal bool, targetNS string)
 	}
 	if probe == "p18" && !(allowZoneWide && replaceReal) {
 		return fmt.Errorf("p18 removes the zone's real A and CNAME records and then restores them; " +
+			"pass both -allow-zone-wide and -replace-real-records to confirm")
+	}
+	if probe == "p19" && !(allowZoneWide && replaceReal) {
+		return fmt.Errorf("p19 changes and deletes the zone's real _domainconnect CNAME record and then restores it; " +
 			"pass both -allow-zone-wide and -replace-real-records to confirm")
 	}
 	token := os.Getenv("GODADDY_API_TOKEN")
@@ -164,6 +168,7 @@ func run(probe, outDir string, allowZoneWide, replaceReal bool, targetNS string)
 		gap:          time.Second,
 		pollEvery:    10 * time.Second,
 		restoreEvery: 15 * time.Second,
+		watchUnit:    time.Second,
 		// The file comes first, so it still gets the transcript if the
 		// terminal has gone away.
 		out:  io.MultiWriter(file, os.Stdout),
@@ -223,6 +228,7 @@ var probes = map[string]func(*runner, probeArgs) error{
 	"p16": p16,
 	"p17": func(r *runner, a probeArgs) error { return p17(r, a.before) },
 	"p18": func(r *runner, a probeArgs) error { return p18(r, a.before) },
+	"p19": func(r *runner, a probeArgs) error { return p19(r, a.before) },
 }
 
 // execute runs one probe with a prepared runner: snapshot, probe, then the

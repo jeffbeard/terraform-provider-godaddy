@@ -32,6 +32,7 @@ type runner struct {
 	gap          time.Duration // minimum time between requests
 	pollEvery    time.Duration // time between nameserver polls
 	restoreEvery time.Duration // time between attempts to restore the nameservers
+	watchUnit    time.Duration // p19 counts its 10, 20, 30 and 60 "seconds" in this; a second, except in tests
 	out          io.Writer     // transcript
 	hc           *http.Client
 

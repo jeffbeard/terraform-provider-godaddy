@@ -68,6 +68,7 @@ func newTestRunner(t *testing.T, api http.Handler) (*runner, *bytes.Buffer) {
 		runID:        "ab12",
 		prefix:       "_probe-ab12-",
 		pollEvery:    time.Millisecond,
+		watchUnit:    10 * time.Microsecond,
 		restoreEvery: time.Millisecond,
 		out:          out,
 		hc:           srv.Client(),
