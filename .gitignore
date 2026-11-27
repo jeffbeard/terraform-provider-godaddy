@@ -34,8 +34,3 @@ _testmain.go
 
 # Cross-agent review artifacts
 .agent-reviews/
-
-# Raw probe transcripts from when the probe tool lived here. They name the live
-# test zone and must never be committed. Results are written up in
-# docs/godaddy-api-behaviour.md.
-/scripts/probe/out/
