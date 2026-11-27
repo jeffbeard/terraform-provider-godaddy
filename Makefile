@@ -1,4 +1,4 @@
-.PHONY: linux docs local
+.PHONY: docs local
 # ==================== [START] Global Variable Declaration =================== #
 SHELL := /bin/bash
 # 'shell' removes newlines
@@ -20,14 +20,6 @@ BINARY := "terraform-provider-godaddy_v$(VERSION)"
 export
 # ===================== [END] Global Variable Declaration ==================== #
 
-linux:
-	@echo "Pulling latest image"
-	@docker-compose -f "${BASE_DIR}/docker/docker-compose.yml" pull
-	@echo "Compile and build"
-	@docker-compose -f "${BASE_DIR}/docker/docker-compose.yml" run --rm builder
-	@echo "Cleaning up resources"
-	@docker-compose -f "${BASE_DIR}/docker/docker-compose.yml" down
-	
 docs:
 	@go generate
 
