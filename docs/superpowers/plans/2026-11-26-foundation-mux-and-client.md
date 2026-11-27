@@ -68,7 +68,7 @@ git checkout -b feat/safe-dns-foundation
 - [ ] **Step 2: Confirm the starting point is green**
 
 Run: `go build ./... && go vet ./... && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'`
-Expected: `ok` for `api`, `plugin/godaddy` (about 10 seconds) and `scripts/probe`. If anything fails, stop and report.
+Expected: `ok` for `api`, `plugin/godaddy` (about 10 seconds). If anything fails, stop and report.
 
 No commit in this task.
 
@@ -93,7 +93,7 @@ Expected: `go.mod` now requires `github.com/hashicorp/terraform-plugin-sdk/v2 v2
 - [ ] **Step 2: Run everything**
 
 Run: `go build ./... && go vet ./... && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'`
-Expected: `ok` for `api`, `plugin/godaddy` and `scripts/probe`.
+Expected: `ok` for `api` and `plugin/godaddy`.
 
 If `plugin/godaddy` fails, the SDK upgrade changed what the old resource sends or plans. Stop and report the failing test and its output. Do not edit the test.
 
@@ -248,7 +248,7 @@ Do not change `rateLimitedTransport`, `RoundTrip`, `execute`, `validate` or `for
 - [ ] **Step 4: Run everything**
 
 Run: `gofmt -l api/client.go; go build ./... && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'`
-Expected: `gofmt` prints nothing; `ok` for `api`, `plugin/godaddy` and `scripts/probe`. The pinning tests still pass because each of their cases uses its own fake server, so its own throttle.
+Expected: `gofmt` prints nothing; `ok` for `api` and `plugin/godaddy`. The pinning tests still pass because each of their cases uses its own fake server, so its own throttle.
 
 - [ ] **Step 5: Commit**
 
@@ -1312,7 +1312,7 @@ gofmt -l api
 go build ./... && go vet ./api && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'
 ```
 
-Expected: `gofmt -l api` prints only `api/domains.go` (a frozen file that was already unformatted; leave it). `ok` for `api` (about 2 seconds), `plugin/godaddy` and `scripts/probe`.
+Expected: `gofmt -l api` prints only `api/domains.go` (a frozen file that was already unformatted; leave it). `ok` for `api` (about 2 seconds), `plugin/godaddy`.
 
 - [ ] **Step 12: Prove two of the safety tests can fail**
 
@@ -1614,7 +1614,7 @@ gofmt -l internal
 go build ./... && go vet ./internal/... && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'
 ```
 
-Expected: `gofmt` prints nothing; `ok` for `api`, `internal/provider`, `plugin/godaddy` and `scripts/probe`.
+Expected: `gofmt` prints nothing; `ok` for `api`, `internal/provider` and `plugin/godaddy`.
 
 - [ ] **Step 6: Commit**
 
@@ -1905,7 +1905,7 @@ gofmt -l main.go main_test.go
 go build ./... && go vet . && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'
 ```
 
-Expected: `gofmt` prints nothing; `ok` for the root package, `api`, `internal/provider`, `plugin/godaddy` and `scripts/probe`.
+Expected: `gofmt` prints nothing; `ok` for the root package, `api`, `internal/provider` and `plugin/godaddy`.
 
 - [ ] **Step 6: Prove the schema check can fail**
 
@@ -1956,7 +1956,7 @@ Expected: no output and exit status 0. (CI runs this check.)
 - [ ] **Step 2: The whole suite passes with the race detector**
 
 Run: `go build ./... && go vet ./... && go test -race -count=1 ./... 2>&1 | grep -v '^20[0-9][0-9]/'`
-Expected: `ok` for the root package, `api`, `internal/provider`, `plugin/godaddy` and `scripts/probe`.
+Expected: `ok` for the root package, `api`, `internal/provider` and `plugin/godaddy`.
 
 - [ ] **Step 3: The frozen files are untouched**
 

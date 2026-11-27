@@ -26,7 +26,10 @@ None of it has been re-verified unless a probe section below says so.
 
 ## Probe results
 
-Probes are in `scripts/probe/`. Each section below is filled in from that probe's transcript.
+The probe tool is kept in a separate private repository, `jeffbeard/godaddy-api-discovery`. It
+lived in this repository under `scripts/probe/` until commit `178fdba` and was moved unchanged
+(commit `4f707d6` there); every run recorded below was made with that code. Each section below is
+filled in from that probe's transcript.
 Format for every section: the date and run ID, each question with its answer, and the request and
 response that show it, copied from the transcript.
 
