@@ -625,6 +625,7 @@ changed.
 | P16 | What do a token with only the read scope, and a token without the nameserver scope, get back? Added to close the under-scoped cases of P1 and P6. | "Token scope". |
 | P17 | Do P9 and P13 hold for TXT, MX and SRV? Added after the second review. | How far the statements about the old resource can be generalised. |
 | P18 | Do they hold for A and CNAME? The probe zone has real records of both, so the probe removes them and writes them back. | The same. |
+| P19 | Can GoDaddy's `_domainconnect` CNAME be changed and deleted at its own name? Added after it survived the replace in P18. | Whether the new resource needs a special case for it. |
 
 P6 and P11 change the probe domain's delegation. Before they run, a hosted zone for the domain is
 created at another DNS host (Amazon Route 53), and its nameservers are the target. The tool
@@ -643,16 +644,12 @@ from 1.11.0 or the spec is revised and re-reviewed. Code is not written against 
 ### Outcome
 
 All probes ran on 2026-11-27. Results, with the requests and responses that show them, are in
-`docs/godaddy-api-behaviour.md`; Appendix D lists what each one changed in this spec. Three things
+`docs/godaddy-api-behaviour.md`; Appendix D lists what each one changed in this spec. Two things
 remain unverified and are treated as such wherever this spec relies on them:
 
 - The format of an HTTP 429 response. None could be produced (P8).
 - Paging of the per-type record list. No type in the probe zone had enough records to test it,
   which is why the SRV read uses the whole-zone list instead.
-- Whether GoDaddy's `_domainconnect` CNAME can be changed or deleted through the per-name
-  endpoint. It survived a type-wide replace (P18). Until this is known, the documentation says
-  that a `godaddy_dns_record` for `_domainconnect` may not be removable, and a delete that GoDaddy
-  accepts but does not carry out shows as the record still existing on the next plan.
 
 ## Testing
 
@@ -816,7 +813,7 @@ Each step leaves the provider releasable. Steps 5 and 6 are independent of each 
   shows no changes for the new resources, and a snapshot of the zone taken before step 1 equals a
   snapshot taken after step 5.
 - Every probe has a recorded result. The only assumptions still unverified at release are the
-  three listed under "Phase 0: Outcome", and the code and documentation treat each as unknown.
+  two listed under "Phase 0: Outcome", and the code and documentation treat each as unknown.
 
 ## Follow-ups
 
@@ -937,7 +934,7 @@ The probes ran on 2026-11-27 with the tool in `scripts/probe/`. Evidence for eve
 | P6 | The domain PATCH returns 204 and becomes visible to reads after 10 to 20 seconds. Nameservers can come back in upper case and in any order. | Nameserver "Waiting", errors and scopes updated. |
 | P7 | `offset` is a one-based page number. | Finding F11 withdrawn; D9 simplified. |
 | P8 | 134 successful reads in a minute were not limited. | "Retry" and "Shared rate limit" say the 429 format and the limit are unverified. |
-| P9, P13, P17, P18 | An empty type-wide replace does nothing. A replace with at least one record deletes the other records of that type. Measured on all six types the old resource writes. GoDaddy's `_domainconnect` CNAME survived a CNAME replace that left it out. | Summary, Background and findings F1 to F3 corrected; finding F20 added; the old resource's documentation describes the measured behaviour without promising it. |
+| P9, P13, P17, P18 | An empty type-wide replace does nothing. A replace with at least one record deletes the other records of that type. Measured on all six types the old resource writes. GoDaddy's `_domainconnect` CNAME survived a CNAME replace that left it out; P19 showed it is an ordinary record at the per-name endpoints, so that is a quirk of the type-wide replace. | Summary, Background and findings F1 to F3 corrected; finding F20 added; the old resource's documentation describes the measured behaviour without promising it. |
 | P10 | No stale read after 20 writes and 4 deletes. | "Reading after a write" has no polling. |
 | P11 | With nameservers moved away but the zone file kept, record endpoints behave normally. With no zone file they return 404 `UNKNOWN_DOMAIN`. | "Read" case 3 written; the undetectable state is documented, not checked. |
 | P12 | Per-type and whole-zone reads work. | None in 1.11.0. |

@@ -1253,42 +1253,77 @@ func (r *runner) p18One(t p18Type, before []zoneRecord, sum *p18Summary) (err er
 }
 
 // restoreRecords puts the real records of one type back after p18 replaced
-// the type, and returns an error unless it has seen every one of them in
-// the zone again, field for field. It runs in finishing mode: an interrupt
-// does not stop it.
-//
-// It reads the type first and sends nothing if every original is there.
-// Otherwise it sends one type-wide PUT with the originals, without their
-// "type" field, retrying a refusal up to 20 times (a 401 or 403 ends the
-// retries at once), and reads the type again. If the originals are not all
-// there it sends the PUT once more and then gives up. The error repeats the
-// originals as JSON, to recreate by hand.
+// the type. It reads the type first and sends nothing if every original is
+// there. Otherwise it sends one type-wide PUT with the originals, without
+// their "type" field. See restore for the rest.
 func (r *runner) restoreRecords(recordType string, originals []zoneRecord, originalsJSON string) error {
+	body := make([]rec, len(originals))
+	for i, z := range originals {
+		body[i] = z.withoutType()
+	}
+	return r.restore(restoreJob{
+		heading:   fmt.Sprintf("Restore the real %s records", recordType),
+		reads:     fmt.Sprintf("P18 all %s", recordType),
+		writes:    fmt.Sprintf("P18 restore the real %s records", recordType),
+		path:      "/v1/domains/" + r.domain + "/records/" + recordType,
+		body:      body,
+		originals: originals,
+		decode:    func(b []byte) ([]zoneRecord, error) { return decodeRecords(b, recordType) },
+		noWrite:   fmt.Sprintf("Every real %s record is there; no write is needed.", recordType),
+		done:      fmt.Sprintf("P18 %s restored: %d real record(s) are back.", recordType, len(originals)),
+		failure: fmt.Sprintf("P18: the restore of the real %s records FAILED (%%s); recreate these %s records by hand: %s",
+			recordType, recordType, strings.ReplaceAll(originalsJSON, "%", "%%")),
+	})
+}
+
+// restoreJob describes real records to put back with one PUT.
+type restoreJob struct {
+	heading   string       // of the transcript section
+	reads     string       // label of the reads
+	writes    string       // label of the PUT
+	path      string       // read with GET, written with PUT
+	body      []rec        // what to PUT
+	originals []zoneRecord // what a read of path must show afterwards
+	decode    func(body []byte) ([]zoneRecord, error)
+	exact     bool   // a read must show the originals and nothing else
+	noWrite   string // transcript line when the originals are already there
+	done      string // transcript line on success
+	failure   string // error text, with one %s for the reason
+}
+
+// restore puts real records back and returns an error unless it has seen
+// every one of them in the zone again, field for field. It runs in
+// finishing mode: an interrupt does not stop it.
+//
+// It reads the path first and sends nothing if the originals are there.
+// Otherwise it sends the PUT, retrying a refusal up to 20 times (a 401 or
+// 403 ends the retries at once), and reads again. If the originals are not
+// all there it sends the PUT once more and then gives up. The error text
+// repeats the originals as JSON, to recreate by hand.
+func (r *runner) restore(job restoreJob) error {
 	wasFinishing := r.finishing
 	r.finishing = true
 	defer func() { r.finishing = wasFinishing }()
 
-	all := "/v1/domains/" + r.domain + "/records/" + recordType
-	fmt.Fprintf(r.out, "\n### Restore the real %s records\n", recordType)
+	fmt.Fprintf(r.out, "\n### %s\n", job.heading)
 	fail := func(why string) error {
-		err := fmt.Errorf("P18: the restore of the real %s records FAILED (%s); recreate these %s records by hand: %s",
-			recordType, why, recordType, originalsJSON)
+		err := fmt.Errorf(job.failure, why)
 		fmt.Fprintf(r.out, "\n**RESTORE FAILED: %s**\n", err)
 		return err
 	}
 	done := func() error {
-		fmt.Fprintf(r.out, "\nP18 %s restored: %d real record(s) are back.\n", recordType, len(originals))
+		fmt.Fprintf(r.out, "\n%s\n", job.done)
 		return nil
 	}
-	// present reads the type, trying a failed read again a few times, and
-	// reports whether every original is there.
+	// present reads the path, trying a failed read again a few times, and
+	// reports whether the originals are there.
 	present := func(label string) (bool, string) {
 		var resp response
 		for try := 0; try <= 5; try++ {
 			if try > 0 {
 				time.Sleep(r.restoreEvery)
 			}
-			resp = r.do(fmt.Sprintf("P18 all %s %s, read %d", recordType, label, try+1), "GET", all, nil)
+			resp = r.do(fmt.Sprintf("%s %s, read %d", job.reads, label, try+1), "GET", job.path, nil)
 			if resp.Status == 200 {
 				break
 			}
@@ -1296,33 +1331,31 @@ func (r *runner) restoreRecords(recordType string, originals []zoneRecord, origi
 		if resp.Status != 200 {
 			return false, fmt.Sprintf("the read %s returned status %d", label, resp.Status)
 		}
-		records, err := decodeRecords(resp.Body, recordType)
+		records, err := job.decode(resp.Body)
 		if err != nil {
 			return false, fmt.Sprintf("the read %s could not be parsed", label)
 		}
-		if missing := missingFrom(records, originals); missing > 0 {
-			return false, fmt.Sprintf("%d of %d record(s) are missing or differ in the read %s", missing, len(originals), label)
+		if missing := missingFrom(records, job.originals); missing > 0 {
+			return false, fmt.Sprintf("%d of %d record(s) are missing or differ in the read %s", missing, len(job.originals), label)
+		}
+		if job.exact && len(records) != len(job.originals) {
+			return false, fmt.Sprintf("the read %s shows %d record(s) where there were %d", label, len(records), len(job.originals))
 		}
 		return true, ""
 	}
 
 	if ok, _ := present("before the restore"); ok {
-		fmt.Fprintf(r.out, "\nEvery real %s record is there; no write is needed.\n", recordType)
+		fmt.Fprintf(r.out, "\n%s\n", job.noWrite)
 		return done()
 	}
 
-	body := make([]rec, len(originals))
-	for i, z := range originals {
-		body[i] = z.withoutType()
-	}
 	const attempts = 20
 	why := ""
 	for round := 1; round <= 2; round++ {
 		accepted := false
 	send:
 		for attempt := 1; attempt <= attempts; attempt++ {
-			resp := r.do(fmt.Sprintf("P18 restore the real %s records, round %d, attempt %d", recordType, round, attempt),
-				"PUT", all, body)
+			resp := r.do(fmt.Sprintf("%s, round %d, attempt %d", job.writes, round, attempt), "PUT", job.path, job.body)
 			why = fmt.Sprintf("the restoring PUT was not accepted, last status %d", resp.Status)
 			switch {
 			case resp.ok():
@@ -1350,6 +1383,255 @@ func (r *runner) restoreRecords(recordType string, originals []zoneRecord, origi
 		fmt.Fprintf(r.out, "\nRestore accepted, but %s.\n", problem)
 	}
 	return fail(why)
+}
+
+// groupRecords decodes the response to a read of one group. A per-name
+// read may leave out the name and the type; they are filled in, so that the
+// records compare with those of a snapshot.
+func groupRecords(body []byte, recordType, name string) ([]zoneRecord, error) {
+	var raw []map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]zoneRecord, 0, len(raw))
+	for _, fields := range raw {
+		if fields == nil {
+			return nil, fmt.Errorf("a record is null")
+		}
+		if n, _ := fields["name"].(string); n == "" {
+			fields["name"] = name
+		}
+		out = append(out, newZoneRecord(fields, recordType))
+	}
+	return out, nil
+}
+
+// p19Result is what p19 found, for its summary line.
+type p19Result struct {
+	change, del, cameBack, restored string
+}
+
+// p19: can the _domainconnect CNAME be changed or deleted through the
+// per-name endpoint? P18 showed that a type-wide CNAME replace that leaves
+// this record out does not remove it. Either GoDaddy protects it or GoDaddy
+// puts it back; p19 changes it, deletes it and then watches for a minute.
+//
+// It is the one probe that writes to a real record at its own path, and the
+// guard allows it that one path only. Like p18 it is built around putting
+// the record back:
+//
+//   - The record comes from the snapshot taken before the probe, with every
+//     field, and is written to the transcript before the first write.
+//   - Nothing is written unless a fresh read of the record matches it.
+//   - The restore is deferred from just before the first write, so it runs
+//     however the probe ends, including after an interrupt, in finishing
+//     mode and on this goroutine. See restore.
+func p19(r *runner, before []zoneRecord) error {
+	const recordType, name = "CNAME", "_domainconnect"
+	var originals []zoneRecord
+	var canon []string
+	for _, z := range before {
+		if z.Type == recordType && z.Name == name {
+			originals = append(originals, z)
+			canon = append(canon, z.canon)
+		}
+	}
+	if len(originals) == 0 {
+		return fmt.Errorf("the zone has no _domainconnect CNAME; nothing to probe")
+	}
+	originalsJSON := "[" + strings.Join(canon, ",") + "]"
+	fmt.Fprintf(r.out, "\nReal _domainconnect record, to recreate by hand if the restore fails:\n\n```json\n%s\n```\n", originalsJSON)
+
+	result := p19Result{change: "n/a", del: "n/a", cameBack: "n/a", restored: "n/a"}
+	err := r.p19Steps(originals, originalsJSON, &result)
+	if err == nil && r.halted() {
+		fmt.Fprint(r.out, "\nP19 interrupted; the lines above are all there are.\n")
+		return nil
+	}
+	if err == nil && result.restored == "n/a" {
+		return nil // stopped before the first write; p19Steps said why
+	}
+	fmt.Fprintf(r.out, "\nP19 summary: per-name change %s; per-name delete %s; GoDaddy %s; restored: %s\n",
+		result.change, result.del, result.cameBack, result.restored)
+	return err
+}
+
+func (r *runner) p19Steps(originals []zoneRecord, originalsJSON string, result *p19Result) (err error) {
+	const recordType, name, changed = "CNAME", "_domainconnect", "probe-changed.example.net"
+	group := r.group(recordType, name)
+	listPath := "/v1/domains/" + r.domain + "/records/" + recordType
+	originalData, _ := originals[0].fields["data"].(string)
+
+	// held reads the group and returns the data of its records.
+	type reading struct {
+		status  int
+		data    []string
+		records []zoneRecord
+	}
+	read := func(resp response) reading {
+		got := reading{status: resp.Status}
+		if resp.Status != 200 {
+			return got
+		}
+		records, decodeErr := groupRecords(resp.Body, recordType, name)
+		if decodeErr != nil {
+			got.status = 0
+			return got
+		}
+		got.records = records
+		for _, z := range records {
+			data, _ := z.fields["data"].(string)
+			got.data = append(got.data, data)
+		}
+		return got
+	}
+
+	// Last check before a real record is at stake: it must still be what
+	// would be put back.
+	fresh := read(r.do("P19 read the record before anything is changed", "GET", group, nil))
+	if r.halted() {
+		return nil
+	}
+	if fresh.status != 200 {
+		return fmt.Errorf("P19: the read of the _domainconnect CNAME before the change returned status %d; nothing was written", fresh.status)
+	}
+	if len(fresh.records) != len(originals) || missingFrom(fresh.records, originals) != 0 {
+		return fmt.Errorf("P19: the _domainconnect CNAME changed since the snapshot (it now holds %v); nothing was written", fresh.data)
+	}
+
+	// The restore is armed just before the first write is sent and from
+	// then on runs whatever happens.
+	armed := false
+	defer func() {
+		if !armed {
+			return
+		}
+		body := make([]rec, len(originals))
+		for i, z := range originals {
+			body[i] = z.withoutType()
+			delete(body[i], "name") // a per-name body carries neither
+		}
+		restoreErr := r.restore(restoreJob{
+			heading:   "Restore the _domainconnect CNAME",
+			reads:     "P19 read the record",
+			writes:    "P19 restore the record",
+			path:      group,
+			body:      body,
+			originals: originals,
+			decode:    func(b []byte) ([]zoneRecord, error) { return groupRecords(b, recordType, name) },
+			exact:     true,
+			noWrite:   "The record is as it was; no write is needed.",
+			done:      "P19 restored: _domainconnect is back as it was.",
+			failure: "P19: the restore of the _domainconnect CNAME record FAILED (%s); recreate this record by hand: " +
+				strings.ReplaceAll(originalsJSON, "%", "%%"),
+		})
+		result.restored = "yes"
+		if restoreErr != nil {
+			err = restoreErr
+			result.restored = "NO"
+		}
+	}()
+
+	// 1 and 2: change it.
+	var put response
+	var afterPut reading
+	r.inOrder(
+		func() {
+			armed = true
+			put = r.do("P19 change the record at its own name", "PUT", group, []rec{{"data": changed, "ttl": 3600}})
+		},
+		func() { afterPut = read(r.do("P19 read the record after the change", "GET", group, nil)) },
+		func() { r.do("P19 list all CNAME records after the change", "GET", listPath, nil) },
+	)
+	if r.halted() {
+		return nil
+	}
+	holds := func(got reading) string { return strings.Join(got.data, ", ") }
+	verdict := "accepted, effect unknown"
+	switch {
+	case afterPut.status != 200:
+		fmt.Fprintf(r.out, "\nP19 change: status %d; inconclusive because the read afterwards returned status %d\n", put.Status, afterPut.status)
+	case len(afterPut.data) == 0:
+		fmt.Fprintf(r.out, "\nP19 change: status %d; _domainconnect now holds nothing (GONE)\n", put.Status)
+	case len(afterPut.data) == 1 && afterPut.data[0] == changed:
+		fmt.Fprintf(r.out, "\nP19 change: status %d; _domainconnect now holds %s (CHANGED)\n", put.Status, holds(afterPut))
+		verdict = "accepted and applied"
+	case len(afterPut.data) == 1 && afterPut.data[0] == originalData:
+		fmt.Fprintf(r.out, "\nP19 change: status %d; _domainconnect now holds %s (UNCHANGED)\n", put.Status, holds(afterPut))
+		verdict = "accepted but not applied"
+	default:
+		fmt.Fprintf(r.out, "\nP19 change: status %d; _domainconnect now holds %s (inconclusive because that is neither the old nor the new value)\n",
+			put.Status, holds(afterPut))
+	}
+	if !put.ok() {
+		verdict = fmt.Sprintf("refused (status %d)", put.Status)
+	}
+	result.change = verdict
+
+	// 3 and 4: delete it.
+	var del response
+	var afterDelete reading
+	var deletedAt time.Time
+	r.inOrder(
+		func() {
+			del = r.do("P19 delete the record at its own name", "DELETE", group, nil)
+			deletedAt = time.Now()
+		},
+		func() {
+			afterDelete = read(r.doNow("P19 read the record straight after the delete", "GET", group, nil))
+		},
+		func() { r.do("P19 list all CNAME records after the delete", "GET", listPath, nil) },
+	)
+	if r.halted() {
+		return nil
+	}
+	absent := afterDelete.status == 200 && len(afterDelete.data) == 0
+	verdict = "accepted, effect unknown"
+	switch {
+	case afterDelete.status != 200:
+		fmt.Fprintf(r.out, "\nP19 delete: status %d; inconclusive because the read afterwards returned status %d\n", del.Status, afterDelete.status)
+	case absent:
+		fmt.Fprintf(r.out, "\nP19 delete: status %d; straight afterwards the record is ABSENT\n", del.Status)
+		verdict = "accepted and applied"
+	default:
+		fmt.Fprintf(r.out, "\nP19 delete: status %d; straight afterwards the record is PRESENT holding %s\n", del.Status, holds(afterDelete))
+		verdict = "accepted but not applied"
+	}
+	if !del.ok() {
+		verdict = fmt.Sprintf("refused (status %d)", del.Status)
+	}
+	result.del = verdict
+	if !absent {
+		return nil // there is nothing to watch come back
+	}
+
+	// 5: does GoDaddy put it back?
+	fmt.Fprint(r.out, "\nWatching for the record to come back:\n\n")
+	wasQuiet := r.quiet
+	r.quiet = true
+	defer func() { r.quiet = wasQuiet }()
+	for _, seconds := range []int{10, 20, 30, 60} {
+		if wait := time.Until(deletedAt.Add(time.Duration(seconds) * r.watchUnit)); wait > 0 && !r.pause(wait) {
+			return nil
+		}
+		got := read(r.doNow(fmt.Sprintf("P19 read the record about %d s after the delete", seconds), "GET", group, nil))
+		if r.halted() {
+			return nil
+		}
+		line := fmt.Sprintf("- %d s: status %d, %d record(s)", seconds, got.status, len(got.data))
+		if len(got.data) > 0 {
+			line += ": " + holds(got)
+		}
+		fmt.Fprintln(r.out, line)
+		if len(got.data) > 0 {
+			fmt.Fprintf(r.out, "\nP19 after 60 s: the record CAME BACK holding %s after about %d s\n", holds(got), seconds)
+			result.cameBack = fmt.Sprintf("put it back after about %d s", seconds)
+			return nil
+		}
+	}
+	fmt.Fprint(r.out, "\nP19 after 60 s: the record is still ABSENT\n")
+	result.cameBack = "did not put it back within 60 s"
+	return nil
 }
 
 // p6 asks what a nameserver change looks like, and runs P11 while the

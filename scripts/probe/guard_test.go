@@ -100,6 +100,8 @@ func TestAllowanceFor(t *testing.T) {
 		{"p17", false, allowance{}},
 		{"p18", true, allowance{typeWidePut: []string{"A", "CNAME"}}},
 		{"p18", false, allowance{}},
+		{"p19", true, allowance{realGroup: [2]string{"CNAME", "_domainconnect"}}},
+		{"p19", false, allowance{}},
 		{"p2", true, allowance{}},
 		{"p10", true, allowance{}},
 	}

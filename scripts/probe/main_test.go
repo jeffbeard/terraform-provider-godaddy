@@ -189,12 +189,12 @@ func TestExitCode(t *testing.T) {
 }
 
 func TestValidateProbe(t *testing.T) {
-	for _, name := range []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p12", "p13", "p14", "p15", "p16", "p17", "p18"} {
+	for _, name := range []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19"} {
 		if err := validateProbe(name); err != nil {
 			t.Errorf("validateProbe(%q) = %v", name, err)
 		}
 	}
-	for _, name := range []string{"", "nonsense", "p11", "P1", "p1 ", "../p1", "p19"} {
+	for _, name := range []string{"", "nonsense", "p11", "P1", "p1 ", "../p1", "p20"} {
 		if err := validateProbe(name); err == nil || !strings.Contains(err.Error(), "unknown probe") {
 			t.Errorf("validateProbe(%q) = %v, want an unknown probe error", name, err)
 		}

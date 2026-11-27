@@ -37,6 +37,16 @@ type fakeZone struct {
 	restores       []string       // "type body" of every restore received
 	listStatus     map[string]int // type -> status for a read of the whole type
 
+	// How the per-name endpoints treat CNAME _domainconnect. "": like any
+	// record; "protected": PUT and DELETE answer 2xx and change nothing;
+	// "refused": PUT answers 422 and DELETE 409.
+	domainConnect string
+	// comesBackAfter, when positive, puts a deleted _domainconnect back,
+	// with its default value, at that read of its group after the delete.
+	comesBackAfter   int
+	deletedDC        []map[string]interface{}
+	readsSinceDelete int
+
 	// srvReadName, when set, turns the name in a read of one SRV group into
 	// the name the record is stored under, or "" for no match.
 	srvReadName func(asked string) string
@@ -144,6 +154,16 @@ func (f *fakeZone) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	case len(parts) == 2 && req.Method == "GET":
 		name := parts[1]
+		if recordType == "CNAME" && name == "_domainconnect" && f.deletedDC != nil {
+			f.readsSinceDelete++
+			if f.comesBackAfter > 0 && f.readsSinceDelete >= f.comesBackAfter {
+				// GoDaddy's default, whatever the record held when deleted.
+				f.deletedDC = nil
+				f.store("CNAME", "_domainconnect", []map[string]interface{}{
+					{"data": "_domainconnect.gd.domaincontrol.com", "ttl": 3600},
+				})
+			}
+		}
 		if recordType == "SRV" && f.srvReadName != nil {
 			name = f.srvReadName(name)
 		}
@@ -154,8 +174,47 @@ func (f *fakeZone) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			io.WriteString(w, `{"code":"INVALID_RECORDS","message":"Missing record information, [flags]."}`)
 			return
 		}
+		if recordType == "CNAME" && parts[1] == "_domainconnect" {
+			switch f.domainConnect {
+			case "protected":
+				return
+			case "refused":
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+			if data, _ := recs[0]["data"].(string); data != "probe-changed.example.net" {
+				// The original being put back.
+				f.restores = append(f.restores, "CNAME/_domainconnect "+string(body))
+				if f.restoreRejects != 0 {
+					if f.restoreRejects > 0 {
+						f.restoreRejects--
+					}
+					status := f.restoreStatus
+					if status == 0 {
+						status = http.StatusConflict
+					}
+					w.WriteHeader(status)
+					return
+				}
+				if f.restoreAlters {
+					recs[0]["ttl"] = 12345
+				}
+			}
+			f.deletedDC = nil
+		}
 		f.store(recordType, parts[1], recs)
 	case len(parts) == 2 && req.Method == "DELETE":
+		if recordType == "CNAME" && parts[1] == "_domainconnect" {
+			switch f.domainConnect {
+			case "protected":
+				w.WriteHeader(http.StatusNoContent)
+				return
+			case "refused":
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			f.deletedDC, f.readsSinceDelete = f.groups["CNAME"]["_domainconnect"], 0
+		}
 		if _, ok := f.groups[recordType][parts[1]]; !ok {
 			w.WriteHeader(http.StatusNotFound)
 			io.WriteString(w, `{"code":"RECORD_NOT_FOUND"}`)
