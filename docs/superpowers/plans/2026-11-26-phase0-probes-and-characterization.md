@@ -12,6 +12,8 @@
 
 > **Note (2026-11-26):** the code blocks for `scripts/probe/` in Tasks 4 to 6, and the tests `TestDomainRecordRequests` and `TestDomainRecordImport` in Task 2, were revised after code review. The repository is the source of truth for those files; the commands in Tasks 8 to 11 are unchanged.
 
+> **Note (2026-11-27):** this plan is complete and kept as a record. The probe tool it built has since moved out of this repository, unchanged, to the private repository `jeffbeard/godaddy-api-discovery` (from commit `178fdba` here to commit `4f707d6` there), where it runs as `go run . -probe <name>` and writes transcripts to `out/`. Paths under `scripts/probe/` below describe where it was when this plan was carried out.
+
 ---
 
 ## Where this plan sits

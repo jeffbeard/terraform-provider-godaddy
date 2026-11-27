@@ -34,6 +34,3 @@ _testmain.go
 
 # Cross-agent review artifacts
 .agent-reviews/
-
-# Raw probe transcripts. Results are written up in docs/godaddy-api-behaviour.md.
-/scripts/probe/out/

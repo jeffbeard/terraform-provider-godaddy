@@ -598,8 +598,9 @@ Probes run against a domain nothing depends on, before resource code is written.
 2026-11-27 against `probe-zone.example`, whose DNS GoDaddy hosts. The first choice, `elsewhere-zone.example`,
 turned out to have its DNS at Route 53, so GoDaddy held no zone for it; what it returned is
 recorded under P1 and P11. They are
-small scripts in `scripts/probe/`, run by hand with a token in the environment. They are not part
-of CI.
+small scripts, run by hand with a token in the environment. They are not part of CI. They were
+written in this repository under `scripts/probe/` and have since moved to a separate private
+repository, `jeffbeard/godaddy-api-discovery`.
 
 Record probes write only under names beginning with `_probe-` and delete what they create. Before
 and after each probe run, the script snapshots the zone and fails if anything outside that prefix
@@ -919,7 +920,8 @@ Items 14 to 21 came from Claude alone and have no outside confirmation.
 
 ## Appendix D: what the live probes changed
 
-The probes ran on 2026-11-27 with the tool in `scripts/probe/`. Evidence for every line is in
+The probes ran on 2026-11-27 with the probe tool (then in `scripts/probe/`, now in the private
+repository `jeffbeard/godaddy-api-discovery`). Evidence for every line is in
 `docs/godaddy-api-behaviour.md`.
 
 | Probe | Finding | Change to this spec |
