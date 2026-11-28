@@ -2,7 +2,7 @@
 
 Releases are built in the `release` GitHub Actions workflow when a `v*` tag is pushed. It has two jobs:
 
-- **build** has no access to secrets. It refuses tags that are not on `master`, runs the unit tests,
+- **build** has no access to secrets. It refuses tags that are not on `main`, runs the unit tests,
   builds every platform with GoReleaser, writes the checksum file, and records build provenance.
 - **sign** waits for approval of the `release` environment. It signs the checksum file with GPG and
   creates a **draft** GitHub release. It checks out no code, so nothing from the repository or its
@@ -114,12 +114,12 @@ and prefer a version that has been out for a week or more.
 ## Cutting a release
 
 1. Set the version in `install.sh` (the Makefile reads it from there) and add a row to the release
-   list in `README.md`. Merge to `master`.
-2. Confirm CI is green on `master`.
+   list in `README.md`. Merge to `main`.
+2. Confirm CI is green on `main`.
 3. Tag the merge commit and push the tag:
 
    ```bash
-   git checkout master && git pull
+   git checkout main && git pull
    git tag -a v1.10.0 -m "v1.10.0"
    git push origin v1.10.0
    ```
