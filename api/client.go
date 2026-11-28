@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -66,24 +68,47 @@ func NewClient(baseURL string, creds Credentials) (*Client, error) {
 		return nil, err
 	}
 
-	var netTransport = &http.Transport{
-		Dial: (&net.Dialer{
-			Timeout: 10 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
-
 	return &Client{
 		baseURL:       baseURL,
 		authorization: authorization,
 		client: &http.Client{
-			Timeout: time.Second * 30,
-			Transport: &rateLimitedTransport{
-				delegate: netTransport,
-				throttle: time.Now().Add(-(rateLimit)),
-			},
+			Timeout:   time.Second * 30,
+			Transport: sharedTransport(baseURL, authorization),
 		},
 	}, nil
+}
+
+// transports holds one throttled transport for each base URL and credential
+// in use. GoDaddy's limit applies to the credential, not to a Client, and one
+// provider process can hold several clients for the same credential (the two
+// halves of the muxed provider, or aliased provider blocks). Sharing the
+// transport keeps them at one request per second between them.
+var transports = struct {
+	sync.Mutex
+	byKey map[string]*rateLimitedTransport
+}{byKey: map[string]*rateLimitedTransport{}}
+
+func sharedTransport(baseURL, authorization string) *rateLimitedTransport {
+	// The key is a digest so the credential is not kept as a map key.
+	sum := sha256.Sum256([]byte(baseURL + "\x00" + authorization))
+	key := hex.EncodeToString(sum[:])
+
+	transports.Lock()
+	defer transports.Unlock()
+	if t, ok := transports.byKey[key]; ok {
+		return t
+	}
+	t := &rateLimitedTransport{
+		delegate: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout: 10 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+		throttle: time.Now().Add(-(rateLimit)),
+	}
+	transports.byKey[key] = t
+	return t
 }
 
 func (c *Client) execute(customerID string, req *http.Request, result interface{}) error {
