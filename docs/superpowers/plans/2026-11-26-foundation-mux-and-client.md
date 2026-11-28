@@ -6,9 +6,11 @@
 
 **Architecture:** `main.go` serves two providers through `terraform-plugin-mux` on protocol 5: the existing SDKv2 provider in `plugin/godaddy` (untouched) and a new `terraform-plugin-framework` provider in `internal/provider` (no resources yet). Both build `api.Client`. The client gains a second request path, `do`, with typed errors and bounded retry, used only by new calls in `api/records.go` and `api/nameservers.go`; the old path, `execute`, is not changed.
 
-**Tech Stack:** Go 1.26 or later (the SDK upgrade raises the module's `go` directive), `terraform-plugin-sdk/v2` v2.41.1, `terraform-plugin-framework` v1.19.0, `terraform-plugin-mux` v0.23.1, `terraform-plugin-go` v0.31.0, `terraform-plugin-log`. Tests use the standard library and `net/http/httptest` only.
+**Tech Stack:** Go 1.26 or later (the module's `go` directive is already `1.26.0`), `terraform-plugin-sdk/v2` v2.41.1, `terraform-plugin-framework` v1.19.0, `terraform-plugin-mux` v0.23.1, `terraform-plugin-go` v0.31.0, `terraform-plugin-log`. Tests use the standard library and `net/http/httptest` only.
 
 **Spec:** `docs/superpowers/specs/2026-11-26-safe-dns-resources-design.md`, sections "Architecture", "API client additions" and "Retry". This plan covers steps 3 and 4 of its "Order of work".
+
+> **Note (2026-11-27):** refreshed against `master` after three changes merged that this plan did not know about: the dependency security bumps (pull request 12: `go` directive `1.26.0`, grpc 1.83.2, protobuf 1.36.12, x/net 0.63.0), the removal of the Docker build (13) and the move of the probe tool to its own repository (15). The pinned versions below were checked on that date and are still the latest releases. Code blocks are unchanged.
 
 ---
 
@@ -28,12 +30,12 @@ Everything in this plan was built and run in a scratch copy of the repository fi
 - **The pinning tests are the alarm.** `plugin/godaddy/resource_dns_record_requests_test.go` and `resource_dns_record_plan_test.go` must pass after every task, unchanged. If one fails, stop and report. Never edit their expected values.
 - Do not contact the real GoDaddy API. Nothing in this plan needs a token.
 - Commit after each task. Do not push or open a pull request unless the maintainer asks. Humans merge pull requests.
-- Work on a branch created from the branch that holds this plan (`chore/p19-and-plan-2`), or from `master` once that has been merged. Pull request 11 is merged; the checks below compare against `master`.
+- Work on a branch created from `master`, which holds this plan. The checks below compare against `master`.
 - In the maintainer's shell `rm` is aliased to prompt; use `/bin/rm -f` if a file must be deleted.
 
 ## Deferred on purpose
 
-- **Lint in CI.** `golangci-lint run ./...` reports about 40 findings today, most in frozen files that must not be edited and in the probe tool. Adding it to CI needs an exclusion policy and a clean-up of the probe tool, which belongs with plan 3.
+- **Lint in CI.** `golangci-lint run ./...` reports about 40 findings today, most in frozen files that must not be edited. (The rest were in the probe tool, which has since left this repository.) Adding it to CI needs an exclusion policy, which belongs with plan 3.
 - **The unsafe-`baseurl` refusal and the nameserver warning** from the spec live in the resources, so they are in plan 3.
 
 ## File structure
@@ -61,7 +63,8 @@ Everything in this plan was built and run in a scratch copy of the repository fi
 - [ ] **Step 1: Create the branch**
 
 ```bash
-git checkout chore/p19-and-plan-2   # the branch that holds this plan; use master if it has been merged
+git checkout master
+git pull --ff-only
 git checkout -b feat/safe-dns-foundation
 ```
 
@@ -88,7 +91,7 @@ go get github.com/hashicorp/terraform-plugin-sdk/v2@v2.41.1
 go mod tidy
 ```
 
-Expected: `go.mod` now requires `github.com/hashicorp/terraform-plugin-sdk/v2 v2.41.1`, and its `go` line reads `go 1.26.0` (it was `go 1.19`). The higher `go` line is required by the new SDK and is expected. CI already builds with Go 1.27.
+Expected: `go.mod` now requires `github.com/hashicorp/terraform-plugin-sdk/v2 v2.41.1`. Its `go` line stays `go 1.26.0`; the dependency bumps in pull request 12 already raised it. Several indirect requirements move as well (for example `go-plugin`, `terraform-plugin-go`, `hcl/v2`, `go-cty`); that is expected. CI builds with Go 1.27.
 
 - [ ] **Step 2: Run everything**
 
