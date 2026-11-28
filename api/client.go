@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -30,6 +31,10 @@ type Client struct {
 	baseURL       string
 	authorization string
 	client        *http.Client
+
+	// sleep waits between retries of the calls in request.go. Tests replace
+	// it so they do not wait.
+	sleep func(context.Context, time.Duration) error
 }
 
 // rateLimitedTransport throttles API calls to GoDaddy. It appears that
@@ -75,6 +80,7 @@ func NewClient(baseURL string, creds Credentials) (*Client, error) {
 			Timeout:   time.Second * 30,
 			Transport: sharedTransport(baseURL, authorization),
 		},
+		sleep: sleepContext,
 	}, nil
 }
 
